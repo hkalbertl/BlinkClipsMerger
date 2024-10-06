@@ -37,7 +37,7 @@ namespace BlinkClipsMerger
         [Option('s', "video-codec-preset", HelpText = "The video codec preset to be used for output files. It will affect the output quality and not all video codec supported.")]
         public string VideoCodecPreset { get; set; }
 
-        [Option('i', "ignore-duration", Default = 1, HelpText = "Ignore clips that having duration (in seconds) lesser than specified value.")]
+        [Option('i', "ignore-duration", Default = 1, HelpText = "Ignore clips that having duration (in seconds) lesser than specified value. It should help to skip corrupted clips.")]
         public int IgnoreDuration { get; set; }
 
         [Option('f', "camera-filter", HelpText = "The camera name regex filter. Such as -f \"^Gar\" will match Garden and Garage clips.")]

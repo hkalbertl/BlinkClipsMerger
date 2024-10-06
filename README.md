@@ -58,20 +58,20 @@ BlinkClipsMerger is written in pure C# so it should work on common modern platfo
 
   -c, --video-codec              (Default: libx265) The video codec for merged output files.
 
-  -s, --video-codec-preset       The video codec preset to be used for output files. It will affect the
-                                 output quality and not all video codec supported.
+  -s, --video-codec-preset       The video codec preset to be used for output files. It will affect
+                                 the output quality and not all video codec supported.
 
-  -i, --ignore-duration          (Default: 1) Ignore clips that having duration (in seconds) lesser than
-                                 specified value. It should help to skip corrupted clips.
+  -i, --ignore-duration          (Default: 1) Ignore clips that having duration (in seconds) lesser
+                                 than specified value. It should help to skip corrupted clips.
 
   -f, --camera-filter            The camera name regex filter. Such as -f "^Gar" will match
                                  Garden and Garage clips.
 
-  --start-date                   Filter out the clips captured before this start date. The date should be
-                                 in yyyy-MM-dd format.
+  --start-date                   Filter out the clips captured before this start date. The date should
+                                 be in yyyy-MM-dd format.
 
-  --end-date                     Filter out the clips captured after this end date. The date should be in
-                                 yyyy-MM-dd format.
+  --end-date                     Filter out the clips captured after this end date. The date should be
+                                 in yyyy-MM-dd format.
 
   --thread-culture               The custom thread culture to be used for date/time formatting. Such as
                                  zh-TW for Taiwan.
