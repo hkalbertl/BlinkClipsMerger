@@ -16,19 +16,19 @@ namespace BlinkClipsMerger
         [Option('g', "group-by-month", HelpText = "Merge clips based on the captured month instead of date.")]
         public bool GroupByMonth { get; set; }
 
-        [Option('m', "ffmpeg", HelpText = "Path to the ffmpeg executable, leave blank to use command ffmpeg.")]
+        [Option('m', "ffmpeg", HelpText = "Specify the path to \"ffmpeg\" executable if FFmpeg is not configurated in system PATH variable.")]
         public string FFMpegExecutablePath { get; set; }
 
-        [Option('p', "probe", HelpText = "Path to the ffprobe executable, leave blank to use command ffprobe.")]
+        [Option('p', "ffprobe", HelpText = "Specify the path to \"ffprobe\" executable if FFmpeg is not configurated in system PATH variable.")]
         public string FFProbeExecutablePath { get; set; }
 
-        [Option('t', "filename-template", Default = "{0}_{1:yyyy-MM-dd}.mp4", HelpText = "The template string for generating output file name. Where {0} is the camera name and {1} is the date. Standard .NET date/time format can be applied.")]
+        [Option('t', "filename-template", HelpText = "The template string for generating output file name. Default value is \"{0}_{1:yyyy-MM-dd}.mp4\" where {0} is the camera name and {1} is the capture time (standard .NET date/time format can be applied). If -g option is used without -t, the default template \"{0}_{1:yyyy-MM}.mp4\" will be used.")]
         public string FileNameTemplate { get; set; }
 
-        [Option('f', "camera-filter", HelpText = "The camera name regex filter.")]
+        [Option('f', "camera-filter", HelpText = "The camera name regex filter. Such as -f \"^Gar\" will match Garden and Garage clips.")]
         public string CameraFilter { get; set; }
 
-        [Option('r', "video-frame-rate", Default = 25, HelpText = "The video framerate.")]
+        [Option('r', "video-frame-rate", Default = 25, HelpText = "The output video frame rate.")]
         public float FrameRate { get; set; }
 
         [Option('d', "title-duration", Default = 2, HelpText = "The duration (in seconds) of title image.")]
@@ -37,13 +37,13 @@ namespace BlinkClipsMerger
         [Option('c', "video-codec", Default = "libx265", HelpText = "The video codec for merged output files.")]
         public string VideoCodec { get; set; }
 
-        [Option('s', "video-codec-preset", HelpText = "The video codec preset that will affect the output quality.")]
+        [Option('s', "video-codec-preset", HelpText = "The video codec preset to be used for output files. It will affect the output quality and not all video codec supported.")]
         public string VideoCodecPreset { get; set; }
 
         [Option('i', "ignore-duration", Default = 1, HelpText = "Ignore clips that having duration (in seconds) lesser than specified value.")]
         public int IgnoreDuration { get; set; }
 
-        [Option("thread-culture", HelpText = "The custom thread culture to be used for date/time formatting.")]
+        [Option("thread-culture", HelpText = "The custom thread culture to be used for date/time formatting. Such as zh-TW for Taiwan.")]
         public string ThreadCulture { get; set; }
 
         [Option("font-family", Default = "sans-serif", HelpText = "The font family used in titles.")]

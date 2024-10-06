@@ -29,25 +29,46 @@ namespace BlinkClipsMerger
         private const string BlinkDateDirectoryFormat = "yy-MM-dd";
 
         /// <summary>
-        /// The time format used for Blink clip file name. It should match something like: 23-59-58
+        /// The time format used for prefix of Blink clip file name. It should match something like: 23-59-58
         /// </summary>
         private const string BlinkClipTimeFormat = "HH-mm-ss";
 
         /// <summary>
-        /// The ffmpeg parameters for creating slient audio stream.
-        /// These parameters should be simliar to Blink clips standard audio encoding.
+        /// A static class defined parameters for FFmpeg executables.
         /// </summary>
-        private const string SlientAudioParameters = "-f lavfi -i anullsrc=r=16000:cl=mono:n=32";
+        static class FFmpegParameters
+        {
+            /// <summary>
+            /// The ffmpeg parameters for creating slient audio stream.
+            /// These parameters should be simliar to Blink clips standard audio encoding.
+            /// </summary>
+            internal const string AddSlientAudio = "-f lavfi -i anullsrc=r=16000:cl=mono:n=32";
+
+            /// <summary>
+            /// The output audio parameters that using AAC single channel (mono) with 16k bit rate.
+            /// </summary>
+            internal const string EncodeOutputAudio = "-c:a aac -ac 1 -b:a 16k";
+
+            /// <summary>
+            /// The parameters for getting video duration by using ffprobe.
+            /// </summary>
+            internal const string GetDuration = "-v error -select_streams v:0 -show_entries format=duration -of csv=p=0";
+
+            /// <summary>
+            /// The parameters for getting video dimension by using ffprobe.
+            /// </summary>
+            internal const string GetDimension = "-v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0";
+
+            /// <summary>
+            /// The parameters for getting audio stream by using ffprobe.
+            /// </summary>
+            internal const string GetAudioStream = "-v error -show_streams -select_streams a";
+        }
 
         /// <summary>
-        /// The output audio parameters that using AAC single channel (mono) with 16k bit rate.
+        /// The Regex for Blink clip file name. It should match something like: 23-59-58_Garage_123.mp4
         /// </summary>
-        private const string OutputAudioParameters = "-c:a aac -ac 1 -b:a 16k";
-
-        /// <summary>
-        /// The Regex for Blink clip file name. It should match somthing like: 23-59-58_Garage_123.mp4
-        /// </summary>
-        private static readonly Regex BlinkClipFileRegex = new("^[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}_.+_[0-9]+\\.mp4$");
+        private static readonly Regex BlinkClipFileNameRegex = new("^[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}_.+_[0-9]+\\.mp4$");
 
         /// <summary>
         /// The entry point of main logic.
@@ -82,16 +103,41 @@ namespace BlinkClipsMerger
                 Console.Error.WriteLine("Invalid title foreground color: {0}", options.TitleForeground);
                 return false;
             }
+            if (string.IsNullOrEmpty(options.FileNameTemplate))
+            {
+                if (options.GroupByMonth)
+                {
+                    options.FileNameTemplate = "{0}_{1:yyyy-MM}.mp4";
+                }
+                else
+                {
+                    options.FileNameTemplate = "{0}_{1:yyyy-MM-dd}.mp4";
+                }
+            }
+
+            // An inline method for writing log message to console based on options.Quiet value
+            void WriteLog(string message)
+            {
+                if (!options.Quiet)
+                {
+                    Console.WriteLine(message);
+                }
+            };
 
             // Change thread culture
             if (!string.IsNullOrEmpty(options.ThreadCulture))
             {
-                var culture = new CultureInfo(options.ThreadCulture);
-                Thread.CurrentThread.CurrentCulture = culture;
-                Thread.CurrentThread.CurrentUICulture = culture;
-                if (!options.Quiet)
+                try
                 {
-                    Console.WriteLine("Using thread culture: {0}", options.ThreadCulture);
+                    var culture = CultureInfo.GetCultureInfo(options.ThreadCulture);
+                    Thread.CurrentThread.CurrentCulture = culture;
+                    Thread.CurrentThread.CurrentUICulture = culture;
+                    WriteLog($"Using thread culture: {options.ThreadCulture}");
+                }
+                catch (CultureNotFoundException)
+                {
+                    Console.Error.WriteLine("Invalid thread culture: {0}", options.ThreadCulture);
+                    return false;
                 }
             }
 
@@ -115,10 +161,7 @@ namespace BlinkClipsMerger
             Console.CancelKeyPress += async (_, e) =>
             {
                 e.Cancel = true;
-                if (!options.Quiet)
-                {
-                    Console.WriteLine("Termination key detected. Cleaning up...");
-                }
+                WriteLog("Termination key detected. Cleaning up...");
                 if (!cancellationSource.IsCancellationRequested)
                 {
                     cancellationSource.Cancel();
@@ -146,10 +189,7 @@ namespace BlinkClipsMerger
 #endif
                     continue;
                 }
-                if (!options.Quiet)
-                {
-                    Console.WriteLine("Processing month directory: {0}", monthFolder.Name);
-                }
+                WriteLog($"Processing month directory: {monthFolder.Name}");
 
                 // Process on each date folder
                 foreach (var dateFolder in monthFolder.GetDirectories())
@@ -162,17 +202,17 @@ namespace BlinkClipsMerger
 #endif
                         continue;
                     }
-                    if (!options.Quiet)
-                    {
-                        Console.WriteLine("  Processing date directory: {0}", dateFolder.Name);
-                    }
 
-                    // Get the list of clip files
-                    foreach (var clipFile in dateFolder.GetFiles(BlinkClipFileExtensionFilter))
+                    // Retrieve clip files by file extension filter
+                    var clipFiles = dateFolder.GetFiles(BlinkClipFileExtensionFilter);
+                    WriteLog($"  Processing date directory: {dateFolder.Name} with {clipFiles.Length} clip(s)");
+
+                    // Process on each date clip files
+                    foreach (var clipFile in clipFiles)
                     {
-                        if (!BlinkClipFileRegex.IsMatch(clipFile.Name))
+                        if (!BlinkClipFileNameRegex.IsMatch(clipFile.Name))
                         {
-                            // Skip file name that are not HH-mm-ss_[Camera Name]_[Sequence].mp4
+                            // Skip file name that are not HH-mm-ss_[Camera]_[Sequence].mp4
 #if DEBUG
                             System.Diagnostics.Debug.WriteLine($"Skipping non-Blink standard naming camera clip: {clipFile.Name}");
 #endif
@@ -194,54 +234,55 @@ namespace BlinkClipsMerger
                         var clipInfo = new ClipInfo(clipFile.FullName, clipTime);
 
                         // Get clip duration
-                        var ffprobeResult = await Cli.Wrap(ffprobeCommand).WithArguments(options =>
+                        BufferedCommandResult ffprobeResult = null;
+                        try
                         {
-                            options.Add("-v error -select_streams v:0 -show_entries stream=duration -of default=noprint_wrappers=1:nokey=1", false);
-                            options.Add(clipInfo.FullPath);
-                        }).WithValidation(CommandResultValidation.None).ExecuteBufferedAsync();
-                        if (!ffprobeResult.IsSuccess || !double.TryParse(ffprobeResult.StandardOutput, out var duration))
-                        {
-                            // Failed to read duration? May be the file is corrupted?
-                            if (!options.Quiet)
+                            ffprobeResult = await Cli.Wrap(ffprobeCommand).WithArguments(args =>
                             {
-                                Console.WriteLine("    Ignored corrupted / unsupported file: {0}", clipFile.Name);
+                                args.Add(FFmpegParameters.GetDuration, false);
+                                args.Add(clipInfo.FullPath);
+                            }).WithValidation(CommandResultValidation.None).ExecuteBufferedAsync();
+                            if (!double.TryParse(ffprobeResult.StandardOutput, out var duration))
+                            {
+                                // Failed to read duration? May be the file is corrupted?
+                                WriteLog($"    Ignored corrupted / unsupported file: {clipFile.Name}");
+                                continue;
                             }
-                            continue;
+                            clipInfo.Duration = duration;
+                        }
+                        catch (Exception ex)
+                        {
+                            WriteLog($"    Failed to get duration: {clipFile.Name}, {ex.Message}");
                         }
 
                         // Check duration
-                        if (options.IgnoreDuration > 0 && duration < options.IgnoreDuration)
+                        if (options.IgnoreDuration > 0 && clipInfo.Duration < options.IgnoreDuration)
                         {
                             // Ignore invalid / too short clips
-#if DEBUG
-                            System.Diagnostics.Debug.WriteLine($"Ignored too short clip: {clipFile.Name}");
-#endif
+                            WriteLog($"    Ignored short clip: {clipFile.Name} < {options.IgnoreDuration}s");
                             continue;
                         }
-                        clipInfo.Duration = duration;
 
                         // Get clip dimension
-                        ffprobeResult = await Cli.Wrap(ffprobeCommand).WithArguments(options =>
+                        ffprobeResult = await Cli.Wrap(ffprobeCommand).WithArguments(args =>
                         {
-                            options.Add("-v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0", false);
-                            options.Add(clipInfo.FullPath);
+                            args.Add(FFmpegParameters.GetDimension, false);
+                            args.Add(clipInfo.FullPath);
                         }).ExecuteBufferedAsync();
                         int separator = ffprobeResult.StandardOutput.IndexOf('x');
                         clipInfo.ClipWidth = int.Parse(ffprobeResult.StandardOutput[..separator]);
                         clipInfo.ClipHeight = int.Parse(ffprobeResult.StandardOutput[(separator + 1)..]);
 
                         // Check clip has audio stream
-                        ffprobeResult = await Cli.Wrap(ffprobeCommand).WithArguments(options =>
+                        ffprobeResult = await Cli.Wrap(ffprobeCommand).WithArguments(args =>
                         {
-                            options.Add("-v error -show_streams -select_streams a", false);
-                            options.Add(clipInfo.FullPath);
+                            args.Add(FFmpegParameters.GetAudioStream, false);
+                            args.Add(clipInfo.FullPath);
                         }).ExecuteBufferedAsync();
                         clipInfo.HasAudio = !string.IsNullOrWhiteSpace(ffprobeResult.StandardOutput);
 
-                        if (!options.Quiet)
-                        {
-                            Console.WriteLine("    {0}: {1}", clipFile.Name, clipInfo.ToString());
-                        }
+                        // Print clip info
+                        WriteLog($"    {clipFile.Name}: {clipInfo}");
 
                         // Add clip to camera list
                         if (cameraClipList.TryGetValue(cameraName, out List<ClipInfo> list))
@@ -259,11 +300,7 @@ namespace BlinkClipsMerger
                             return false;
                         }
                     }
-                    if (!options.Quiet)
-                    {
-                        Console.WriteLine("    Total {0} camera(s) found on {1}: {2}",
-                            cameraClipList.Count, dateFolder.Name, string.Join(", ", cameraClipList.Keys));
-                    }
+                    WriteLog($"    Total {cameraClipList.Count} camera(s) found on {dateFolder.Name}: {string.Join(", ", cameraClipList.Keys)}");
 
                     // For merging clips by month, skip to next date
                     if (options.GroupByMonth)
@@ -295,10 +332,9 @@ namespace BlinkClipsMerger
                     return false;
                 }
             }
-            if (!options.Quiet)
-            {
-                Console.WriteLine("Finished! Total {0} file(s) generated.", totalMergedFiles);
-            }
+
+            // Merge completed
+            WriteLog($"Finished! Total {totalMergedFiles} file(s) generated.");
             return true;
         }
 
@@ -317,6 +353,15 @@ namespace BlinkClipsMerger
             // Prepare executable command
             var ffmpegCommand = options.FFMpegExecutablePath ?? "ffmpeg";
 
+            // An inline method for writing log message to console based on options.Quiet value
+            void WriteLog(string message)
+            {
+                if (!options.Quiet)
+                {
+                    Console.WriteLine(message);
+                }
+            };
+
             // Process on each camera
             int mergedFiles = 0;
             DateTime fileNameDate = DateTime.MinValue;
@@ -328,17 +373,28 @@ namespace BlinkClipsMerger
                 {
                     // Declare variables
                     var combineVideoList = new List<string>();
-                    var shouldUseAudio = clipList.Any(m => m.HasAudio);
+                    var shouldUseAudio = false;
+                    int maxClipWidth = 0, maxClipHeight = 0;
+                    foreach (var clipInfo in clipList)
+                    {
+                        if (!shouldUseAudio && clipInfo.HasAudio)
+                        {
+                            // At least one clip has audio
+                            shouldUseAudio = true;
+                        }
+                        if (maxClipWidth < clipInfo.ClipWidth)
+                        {
+                            // Keep the max dimension
+                            maxClipWidth = clipInfo.ClipWidth;
+                            maxClipHeight = clipInfo.ClipHeight;
+                        }
+                    }
 
                     // Create working directory
                     workingDirectoryPath = Path.Combine(options.OutputDirectory, $"_bcm-working-{DateTime.Now.Ticks}");
                     Directory.CreateDirectory(workingDirectoryPath);
 
-                    if (!options.Quiet)
-                    {
-                        Console.WriteLine("  Preparing intermediate clips for camera {0}: {1} files with{2} audio",
-                            cameraName, clipList.Count, shouldUseAudio ? string.Empty : "out");
-                    }
+                    WriteLog($"  Preparing intermediate clips for camera {cameraName}: {clipList.Count} file(s) with{(shouldUseAudio ? string.Empty : "out")} audio");
                     foreach (var clipInfo in clipList)
                     {
                         // Use the capture time of first clip for output file name
@@ -348,13 +404,10 @@ namespace BlinkClipsMerger
                             fileNameDate = clipInfo.CaptureTime;
                         }
 
-                        // Create a blink image with solid colour
-                        if (!options.Quiet)
-                        {
-                            Console.WriteLine("    Creating title clip for {0}", sourceClipName);
-                        }
+                        // Create a blank image with solid colour
+                        WriteLog($"    Creating title clip for {sourceClipName}");
                         var clipImagePath = Path.Combine(workingDirectoryPath, $"_bcm-title-{clipInfo.CaptureTime:yyMMddHHmmss}.png");
-                        using (var surface = SKSurface.Create(new SKImageInfo(clipInfo.ClipWidth, clipInfo.ClipHeight)))
+                        using (var surface = SKSurface.Create(new SKImageInfo(maxClipWidth, maxClipHeight)))
                         {
                             // Fill background color
                             var canvas = surface.Canvas;
@@ -401,7 +454,7 @@ namespace BlinkClipsMerger
                             // Add audio stream when more than one source clip has audio
                             if (shouldUseAudio)
                             {
-                                args.Add(SlientAudioParameters, false);
+                                args.Add(FFmpegParameters.AddSlientAudio, false);
                             }
 
                             // Add video parameters
@@ -418,32 +471,32 @@ namespace BlinkClipsMerger
                             // Add audio encoder, if required
                             if (shouldUseAudio)
                             {
-                                args.Add(OutputAudioParameters, false);
+                                args.Add(FFmpegParameters.EncodeOutputAudio, false);
                             }
 
                             // Add video mapping
-                            args.Add($"-pix_fmt yuvj420p -map 0:v", false);
+                            args.Add("-pix_fmt yuvj420p -map 0:v", false);
 
                             // Add audio mapping, if required
                             if (shouldUseAudio)
                             {
-                                args.Add($"-map 1:a -shortest", false);
+                                args.Add("-map 1:a -shortest", false);
                             }
 
                             args.Add(titleClipPath);
 
                         }).ExecuteAsync(cancellationToken);
 
-                        // Check audio stream on source video
+                        // Check to add audio stream / resize on source video
                         var sourceClipPath = clipInfo.FullPath;
-                        if (shouldUseAudio && !clipInfo.HasAudio)
+                        var requiredSlient = shouldUseAudio && !clipInfo.HasAudio;
+                        var requiredResize = clipInfo.ClipWidth != maxClipWidth;
+                        if (requiredSlient || requiredResize)
                         {
                             // Add audio stream to source video
-                            if (!options.Quiet)
-                            {
-                                Console.WriteLine("    Adding slient audio: {0}", sourceClipName);
-                            }
-                            var clipWithAudioPath = Path.Combine(workingDirectoryPath, $"_bcm-source-{clipInfo.CaptureTime:yyMMddHHmmss}{IntermediateVideoExtension}");
+                            WriteLog($"      Extra processing on source clip: slient={(requiredSlient ? 'y' : 'n')},resize={(requiredResize ? 'y' : 'n')}");
+                            var processedClipPath = Path.Combine(workingDirectoryPath,
+                                $"_bcm-source-{clipInfo.CaptureTime:yyMMddHHmmss}{IntermediateVideoExtension}");
 
                             await Cli.Wrap(ffmpegCommand).WithArguments(args =>
                             {
@@ -452,31 +505,58 @@ namespace BlinkClipsMerger
                                 args.Add(sourceClipPath);
 
                                 // Add slient audio
-                                args.Add(SlientAudioParameters, false);
+                                if (requiredSlient)
+                                {
+                                    args.Add(FFmpegParameters.AddSlientAudio, false);
+                                }
 
-                                // Copy video stream
-                                args.Add("-c:v copy", false);
+                                // Check resize video is required
+                                if (requiredResize)
+                                {
+                                    // Add video resize parameters
+                                    args.Add("-c:v");
+                                    args.Add(options.VideoCodec);
+                                    if (!string.IsNullOrWhiteSpace(options.VideoCodecPreset))
+                                    {
+                                        args.Add("-preset");
+                                        args.Add(options.VideoCodecPreset);
+                                    }
 
-                                // Encode audio
-                                args.Add(OutputAudioParameters, false);
+                                    args.Add($"-vf scale={maxClipWidth}:{maxClipHeight}", false);
+                                }
+                                else
+                                {
+                                    // Copy video stream
+                                    args.Add("-c:v copy", false);
+                                }
 
-                                // Fix the stream length
-                                args.Add("-shortest");
+                                if (requiredSlient)
+                                {
+                                    // Encode audio
+                                    args.Add(FFmpegParameters.EncodeOutputAudio, false);
 
-                                args.Add(clipWithAudioPath);
+                                    // Fix the stream length
+                                    args.Add("-shortest");
+                                }
+                                else if (clipInfo.HasAudio)
+                                {
+                                    // Copy audio if the source already as one
+                                    args.Add("-c:a copy", false);
+                                }
+
+                                // Add output path
+                                args.Add(processedClipPath);
+
                             }).ExecuteAsync(cancellationToken);
 
                             // Use the new source with audio file for futher processing
-                            sourceClipPath = clipWithAudioPath;
+                            sourceClipPath = processedClipPath;
                         }
 
                         // Merge the title and source video
                         var combinedClipName = $"_bcm-combined-{clipInfo.CaptureTime:yyMMddHHmmss}{IntermediateVideoExtension}";
                         var combinedClipPath = Path.Combine(workingDirectoryPath, combinedClipName);
-                        if (!options.Quiet)
-                        {
-                            Console.WriteLine("      Combining title with source clip: {0}", combinedClipName);
-                        }
+                        WriteLog($"      Combining title with source clip: {combinedClipName}");
                         await Cli.Wrap(ffmpegCommand).WithWorkingDirectory(workingDirectoryPath).WithArguments(args =>
                         {
                             // Add title clip
@@ -487,7 +567,7 @@ namespace BlinkClipsMerger
                             args.Add("-i");
                             args.Add(sourceClipPath);
 
-                            // Add merge paraemters based on the existence of audio stream
+                            // Add merge parameters based on the existence of audio stream
                             if (shouldUseAudio)
                             {
                                 args.Add($"-filter_complex \"[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]\" -map \"[outv]\" -map \"[outa]\"", false);
@@ -501,10 +581,9 @@ namespace BlinkClipsMerger
                             args.Add("-r");
                             args.Add(options.FrameRate);
 
-                            // Add video encoding parameters
+                            // Encode the video
                             args.Add("-c:v");
                             args.Add(options.VideoCodec);
-
                             if (!string.IsNullOrWhiteSpace(options.VideoCodecPreset))
                             {
                                 args.Add("-preset");
@@ -514,7 +593,7 @@ namespace BlinkClipsMerger
                             // Add audio encoding parameters
                             if (shouldUseAudio)
                             {
-                                args.Add(OutputAudioParameters, false);
+                                args.Add(FFmpegParameters.EncodeOutputAudio, false);
                             }
 
                             // Add output path
@@ -533,12 +612,8 @@ namespace BlinkClipsMerger
                     // Check the number of clips to merge
                     if (combineVideoList.Count == 1)
                     {
-                        if (!options.Quiet)
-                        {
-                            Console.WriteLine("    Transcode the single clip as merged clip: {0}", outputName);
-                        }
-
                         // Just copy that single clip as output
+                        WriteLog($"    Transcode the single clip as merged clip: {outputName}");
                         await Cli.Wrap(ffmpegCommand).WithWorkingDirectory(workingDirectoryPath).WithArguments(args =>
                         {
                             if (options.Overwrite)
@@ -562,12 +637,8 @@ namespace BlinkClipsMerger
                         var combineListPath = Path.Combine(workingDirectoryPath, "_bcm-combine.txt");
                         File.WriteAllLines(combineListPath, combineVideoList.Select(p => $"file '{Path.GetFileName(p)}'"));
 
-                        if (!options.Quiet)
-                        {
-                            Console.WriteLine("    Merging {0} file(s) to {1}", combineVideoList.Count, outputName);
-                        }
-
                         // Start video merging
+                        WriteLog($"    Merging {combineVideoList.Count} file(s) to {outputName}");
                         await Cli.Wrap(ffmpegCommand).WithWorkingDirectory(workingDirectoryPath).WithArguments(args =>
                         {
                             if (options.Overwrite)
@@ -585,10 +656,7 @@ namespace BlinkClipsMerger
 
                         }).ExecuteAsync(cancellationToken);
                     }
-                    if (!options.Quiet)
-                    {
-                        Console.WriteLine("      Video merged: {0}", outputName);
-                    }
+                    WriteLog($"      Video merged: {outputName}");
                     mergedFiles++;
                 }
                 catch (OperationCanceledException)
