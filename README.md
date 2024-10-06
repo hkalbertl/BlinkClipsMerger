@@ -102,7 +102,7 @@ BlinkClipsMerger is written in pure C# so it should work on common modern platfo
 ```
 # For Windows, specifying ffmpeg and ffprobe path if it is not configurated in PATH variable
 
-> BlinkClipsMerger.exe -m C:\FFmpeg\ffmpeg.exe -p C:\FFmpeg\ffmpeg.exe C:\blink\ C:\merged\
+> BlinkClipsMerger.exe -m C:\FFmpeg\ffmpeg.exe -p C:\FFmpeg\ffprobe.exe C:\blink\ C:\merged\
 ```
 
 ```
@@ -126,6 +126,8 @@ BlinkClipsMerger is written in pure C# so it should work on common modern platfo
 * The name of month directory name is using `yy-MM` format. Such as `24-10`.
 * The name of date directories are using `yy-MM-dd` format. Such as `24-10-04`.
 * The name of video clips are using `HH-mm-ss_[Camera]_[Sequence]` format. Such as `13-24-56_Garden_012`.
+
+![folder-structure](https://github.com/user-attachments/assets/c0b7522d-35d9-452b-98d1-8ae97babfe6f)
 
 ## Dependency Libraries
 * [CliWrap](https://github.com/Tyrrrz/CliWrap) for running FFmpeg on different platforms. This library has a __special__ [terms of use](https://github.com/Tyrrrz/CliWrap?tab=readme-ov-file#terms-of-use) so please take a look before using BlinkClipsMerger.
