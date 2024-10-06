@@ -9,7 +9,7 @@ BlinkClipsMerger is a .NET console application written in C# for merging video c
 * Adding slient audio streams when required
 * Resizing video resolution when required
 
-https://github.com/user-attachments/assets/8e9ec428-527a-4859-9f66-8a46bf41a11d
+https://github.com/user-attachments/assets/5b43535d-ff26-4747-aed5-1cad2aed09ab
 
 ## Supported Platforms
 BlinkClipsMerger is written in pure C# so it should work on common modern platforms. Here are the tested platforms:
