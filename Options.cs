@@ -25,9 +25,6 @@ namespace BlinkClipsMerger
         [Option('t', "filename-template", HelpText = "The template string for generating output file name. Default value is \"{0}_{1:yyyy-MM-dd}.mp4\" where {0} is the camera name and {1} is the capture time (standard .NET date/time format can be applied). If -g option is used without -t, the default template \"{0}_{1:yyyy-MM}.mp4\" will be used.")]
         public string FileNameTemplate { get; set; }
 
-        [Option('f', "camera-filter", HelpText = "The camera name regex filter. Such as -f \"^Gar\" will match Garden and Garage clips.")]
-        public string CameraFilter { get; set; }
-
         [Option('r', "video-frame-rate", Default = 25, HelpText = "The output video frame rate.")]
         public float FrameRate { get; set; }
 
@@ -42,6 +39,15 @@ namespace BlinkClipsMerger
 
         [Option('i', "ignore-duration", Default = 1, HelpText = "Ignore clips that having duration (in seconds) lesser than specified value.")]
         public int IgnoreDuration { get; set; }
+
+        [Option('f', "camera-filter", HelpText = "The camera name regex filter. Such as -f \"^Gar\" will match Garden and Garage clips.")]
+        public string CameraFilter { get; set; }
+
+        [Option("start-date", HelpText = "Filter out the clips captured before this start date. The date should be in yyyy-MM-dd format.")]
+        public string StartDate { get; set; }
+
+        [Option("end-date", HelpText = "Filter out the clips captured after this end date. The date should be in yyyy-MM-dd format.")]
+        public string EndDate { get; set; }
 
         [Option("thread-culture", HelpText = "The custom thread culture to be used for date/time formatting. Such as zh-TW for Taiwan.")]
         public string ThreadCulture { get; set; }

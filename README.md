@@ -40,18 +40,17 @@ BlinkClipsMerger is written in pure C# so it should work on common modern platfo
 
   -g, --group-by-month           Merge clips based on the captured month instead of date.
 
-  -m, --ffmpeg                   Specify the path to "ffmpeg" executable if FFmpeg is not configurated in system PATH
-                                 variable.
+  -m, --ffmpeg                   Specify the path to "ffmpeg" executable if FFmpeg is not configurated
+                                 in system PATH variable.
 
-  -p, --ffprobe                  Specify the path to "ffprobe" executable if FFmpeg is not configurated in system PATH
-                                 variable.
+  -p, --ffprobe                  Specify the path to "ffprobe" executable if FFmpeg is not configurated
+                                 in system PATH variable.
 
   -t, --filename-template        The template string for generating output file name. Default value is
-                                 "{0}_{1:yyyy-MM-dd}.mp4" where {0} is the camera name and {1} is the capture time
-                                 (standard .NET date/time format can be applied). If -g option is used without -t, the
-                                 default template "{0}_{1:yyyy-MM}.mp4" will be used.
-
-  -f, --camera-filter            The camera name regex filter. Such as -f "^Gar" will match Garden and Garage clips.
+                                 "{0}_{1:yyyy-MM-dd}.mp4" where {0} is the camera name and {1} is the
+                                 capture time (standard .NET date/time format can be applied).
+                                 If -g option is used without -t, the default template
+                                 "{0}_{1:yyyy-MM}.mp4" will be used.
 
   -r, --video-frame-rate         (Default: 25) The output video frame rate.
 
@@ -59,24 +58,33 @@ BlinkClipsMerger is written in pure C# so it should work on common modern platfo
 
   -c, --video-codec              (Default: libx265) The video codec for merged output files.
 
-  -s, --video-codec-preset       The video codec preset to be used for output files. It will affect the output quality
-                                 and not all video codec supported.
+  -s, --video-codec-preset       The video codec preset to be used for output files. It will affect the
+                                 output quality and not all video codec supported.
 
-  -i, --ignore-duration          (Default: 1) Ignore clips that having duration (in seconds) lesser than specified
-                                 value.
+  -i, --ignore-duration          (Default: 1) Ignore clips that having duration (in seconds) lesser than
+                                 specified value. It should help to skip corrupted clips.
 
-  --thread-culture               The custom thread culture to be used for date/time formatting. Such as zh-TW for
-                                 Taiwan.
+  -f, --camera-filter            The camera name regex filter. Such as -f "^Gar" will match
+                                 Garden and Garage clips.
+
+  --start-date                   Filter out the clips captured before this start date. The date should be
+                                 in yyyy-MM-dd format.
+
+  --end-date                     Filter out the clips captured after this end date. The date should be in
+                                 yyyy-MM-dd format.
+
+  --thread-culture               The custom thread culture to be used for date/time formatting. Such as
+                                 zh-TW for Taiwan.
 
   --font-family                  (Default: sans-serif) The font family used in titles.
 
   --font-size                    (Default: 144) The font size of titles.
 
-  --date-format                  (Default: yyyy-MM-dd) The date format of title that using standard .NET date/time
-                                 formatting string.
+  --date-format                  (Default: yyyy-MM-dd) The date format of title that using standard
+                                 .NET date/time formatting string.
 
-  --time-format                  (Default: HH:mm:ss) The time format of title that using standard .NET date/time
-                                 formatting string.
+  --time-format                  (Default: HH:mm:ss) The time format of title that using standard
+                                 .NET date/time formatting string.
 
   --title-foreground             (Default: #ffffff) Foreground color of title.
 

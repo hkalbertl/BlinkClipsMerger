@@ -115,6 +115,32 @@ namespace BlinkClipsMerger
                 }
             }
 
+            var dateFilterFormat = "yyyy-MM-dd";
+            DateTime? startDate = null, endDate = null;
+            if (!string.IsNullOrEmpty(options.StartDate))
+            {
+                if (!DateTime.TryParseExact(options.StartDate, dateFilterFormat, null, DateTimeStyles.None, out var parsedStartDate))
+                {
+                    Console.Error.WriteLine("Invalid date format {0} for start date: {1}", dateFilterFormat, options.StartDate);
+                    return false;
+                }
+                startDate = parsedStartDate;
+            }
+            if (!string.IsNullOrEmpty(options.EndDate))
+            {
+                if (!DateTime.TryParseExact(options.EndDate, dateFilterFormat, null, DateTimeStyles.None, out var parsedEndDate))
+                {
+                    Console.Error.WriteLine("Invalid date format {0} for end date: {1}", dateFilterFormat, options.EndDate);
+                    return false;
+                }
+                endDate = parsedEndDate;
+            }
+            if (startDate != null && endDate != null && startDate > endDate)
+            {
+                Console.Error.WriteLine("Start date should be earlier than end date: {0}, {1}", options.StartDate, options.EndDate);
+                return false;
+            }
+
             // An inline method for writing log message to console based on options.Quiet value
             void WriteLog(string message)
             {
@@ -189,7 +215,7 @@ namespace BlinkClipsMerger
 #endif
                     continue;
                 }
-                WriteLog($"Processing month directory: {monthFolder.Name}");
+                WriteLog($"Reading month directory: {monthFolder.Name}");
 
                 // Process on each date folder
                 foreach (var dateFolder in monthFolder.GetDirectories())
@@ -203,11 +229,33 @@ namespace BlinkClipsMerger
                         continue;
                     }
 
+                    // Filter by start / end date
+                    if (startDate != null || endDate != null)
+                    {
+                        if (startDate != null && clipDate < startDate)
+                        {
+                            // Skip clip folder < start date
+#if DEBUG
+                            System.Diagnostics.Debug.WriteLine($"Skipping date folder: {dateFolder.Name} < start date");
+#endif
+                            continue;
+                        }
+                        if (endDate != null && clipDate > endDate)
+                        {
+                            // Skip clip folder > end date
+#if DEBUG
+                            System.Diagnostics.Debug.WriteLine($"Skipping date folder: {dateFolder.Name} > end date");
+#endif
+                            continue;
+                        }
+                    }
+
                     // Retrieve clip files by file extension filter
                     var clipFiles = dateFolder.GetFiles(BlinkClipFileExtensionFilter);
-                    WriteLog($"  Processing date directory: {dateFolder.Name} with {clipFiles.Length} clip(s)");
+                    WriteLog($"  Reading date directory: {dateFolder.Name} with {clipFiles.Length} clip(s)");
 
                     // Process on each date clip files
+                    int dateClipCount = 0;
                     foreach (var clipFile in clipFiles)
                     {
                         if (!BlinkClipFileNameRegex.IsMatch(clipFile.Name))
@@ -253,6 +301,7 @@ namespace BlinkClipsMerger
                         catch (Exception ex)
                         {
                             WriteLog($"    Failed to get duration: {clipFile.Name}, {ex.Message}");
+                            continue;
                         }
 
                         // Check duration
@@ -293,6 +342,7 @@ namespace BlinkClipsMerger
                         {
                             cameraClipList.Add(cameraName, [clipInfo]);
                         }
+                        dateClipCount++;
 
                         // Check for termination
                         if (cancellationSource.Token.IsCancellationRequested)
@@ -300,7 +350,7 @@ namespace BlinkClipsMerger
                             return false;
                         }
                     }
-                    WriteLog($"    Total {cameraClipList.Count} camera(s) found on {dateFolder.Name}: {string.Join(", ", cameraClipList.Keys)}");
+                    WriteLog($"      Total {dateClipCount} matched clip(s) found on {dateFolder.Name}");
 
                     // For merging clips by month, skip to next date
                     if (options.GroupByMonth)
