@@ -364,7 +364,6 @@ namespace BlinkClipsMerger
 
             // Process on each camera
             int mergedFiles = 0;
-            DateTime fileNameDate = DateTime.MinValue;
             foreach (var cameraName in cameraClipList.Keys)
             {
                 string workingDirectoryPath = null;
@@ -372,6 +371,7 @@ namespace BlinkClipsMerger
                 try
                 {
                     // Declare variables
+                    DateTime fileNameDate = DateTime.MinValue;
                     var combineVideoList = new List<string>();
                     var shouldUseAudio = false;
                     int maxClipWidth = 0, maxClipHeight = 0;
@@ -388,6 +388,11 @@ namespace BlinkClipsMerger
                             maxClipWidth = clipInfo.ClipWidth;
                             maxClipHeight = clipInfo.ClipHeight;
                         }
+                        if (fileNameDate == DateTime.MinValue)
+                        {
+                            // Use the capture time of first clip for output file name
+                            fileNameDate = clipInfo.CaptureTime;
+                        }
                     }
 
                     // Create working directory
@@ -395,16 +400,10 @@ namespace BlinkClipsMerger
                     Directory.CreateDirectory(workingDirectoryPath);
 
                     WriteLog($"  Preparing intermediate clips for camera {cameraName}: {clipList.Count} file(s) with{(shouldUseAudio ? string.Empty : "out")} audio");
-                    foreach (var clipInfo in clipList)
+                    foreach (var clipInfo in clipList.OrderBy(m => m.CaptureTime))
                     {
-                        // Use the capture time of first clip for output file name
-                        var sourceClipName = Path.GetFileName(clipInfo.FullPath);
-                        if (fileNameDate == DateTime.MinValue)
-                        {
-                            fileNameDate = clipInfo.CaptureTime;
-                        }
-
                         // Create a blank image with solid colour
+                        var sourceClipName = Path.GetFileName(clipInfo.FullPath);
                         WriteLog($"    Creating title clip for {sourceClipName}");
                         var clipImagePath = Path.Combine(workingDirectoryPath, $"_bcm-title-{clipInfo.CaptureTime:yyMMddHHmmss}.png");
                         using (var surface = SKSurface.Create(new SKImageInfo(maxClipWidth, maxClipHeight)))
