@@ -19,9 +19,33 @@
 
         public int ClipHeight { get; set; }
 
+        public string FrameRate { get; set; }
+
+        /// <summary>
+        /// Parse the ffprobe frame rate to decimal.
+        /// Such as "30000/1001" to 29.97
+        /// </summary>
+        public double CalculatedFrameRate
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(this.FrameRate))
+                {
+                    int slash = this.FrameRate.IndexOf('/');
+                    if (slash > 0 
+                        && int.TryParse(this.FrameRate[..slash], out int top) 
+                        && int.TryParse(this.FrameRate[(slash + 1)..], out int bottom))
+                    {
+                        return 1d * top / bottom;
+                    }
+                }
+                return double.NaN;
+            }
+        }
+
         public override string ToString()
         {
-            return $"au={(this.HasAudio ? 'y' : 'n')},di={this.ClipWidth}x{this.ClipHeight},ln={this.Duration:0.00}s";
+            return $"au={(this.HasAudio ? 'y' : 'n')},di={this.ClipWidth}x{this.ClipHeight},fr={this.CalculatedFrameRate:0.00}fps,ln={this.Duration:0.00}s";
         }
     }
 }

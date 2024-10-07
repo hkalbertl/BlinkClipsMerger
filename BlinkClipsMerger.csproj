@@ -8,7 +8,7 @@
     <Title>BlinkClipsMerger</Title>
     <Authors>Albert L</Authors>
     <PackageProjectUrl>https://github.com/hkalbertl/BlinkClipsMerger</PackageProjectUrl>
-    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionPrefix>1.0.1</VersionPrefix>
   </PropertyGroup>
 
   <ItemGroup>
