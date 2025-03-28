@@ -36,7 +36,7 @@
                         && int.TryParse(this.FrameRate[..slash], out int top) 
                         && int.TryParse(this.FrameRate[(slash + 1)..], out int bottom))
                     {
-                        return 1d * top / bottom;
+                        return Math.Round(1d * top / bottom, 2);
                     }
                 }
                 return double.NaN;

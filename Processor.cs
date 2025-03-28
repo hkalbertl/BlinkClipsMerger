@@ -18,7 +18,7 @@ namespace BlinkClipsMerger
         /// <summary>
         /// The file extension name of intermediate video files. Such as the title clip.
         /// </summary>
-        private const string IntermediateVideoExtension = ".mkv";
+        private const string IntermediateVideoExtension = ".mp4";
 
         /// <summary>
         /// The date format used for Blink month directory name. It should match something like: 23-12
@@ -34,6 +34,16 @@ namespace BlinkClipsMerger
         /// The time format used for prefix of Blink clip file name. It should match something like: 23-59-58
         /// </summary>
         private const string BlinkClipTimeFormat = "HH-mm-ss";
+
+        /// <summary>
+        /// The video codec used by Blink camera.
+        /// </summary>
+        private const string DefaultBlinkVideoCodec = "libx264";
+
+        /// <summary>
+        /// The typical frame rate of Blink camera.
+        /// </summary>
+        private const double DefaultBlinkVideoFrameRate = 29.97;
 
         /// <summary>
         /// A static class defined parameters for FFmpeg executables.
@@ -148,10 +158,22 @@ namespace BlinkClipsMerger
                 }
                 endDate = parsedEndDate;
             }
-            if (startDate != null && endDate != null && startDate > endDate)
+            if (startDate != null && endDate != null)
             {
-                Console.Error.WriteLine("Start date should be earlier than end date: {0}, {1}", options.StartDate, options.EndDate);
-                return false;
+                if (startDate > endDate)
+                {
+                    Console.Error.WriteLine("Start date should be earlier than end date: {0}, {1}", options.StartDate, options.EndDate);
+                    return false;
+                }
+                WriteLog($"Target date range: {startDate:yyyy-MM-dd} ~ {endDate:yyyy-MM-dd}");
+            }
+            else if (startDate != null)
+            {
+                WriteLog($"Target date range: After {startDate:yyyy-MM-dd} (inclusive)");
+            }
+            else if (endDate != null)
+            {
+                WriteLog($"Target date range: Before {endDate:yyyy-MM-dd} (inclusive)");
             }
 
             // An inline method for writing log message to console based on options.Quiet value
@@ -473,7 +495,8 @@ namespace BlinkClipsMerger
                 {
                     Console.WriteLine(message);
                 }
-            };
+            }
+            ;
 
             // Process on each camera
             int mergedFiles = 0;
@@ -486,7 +509,7 @@ namespace BlinkClipsMerger
                     // Declare variables
                     DateTime fileNameDate = DateTime.MinValue;
                     var combineVideoList = new List<string>();
-                    var shouldUseAudio = false;
+                    bool shouldUseAudio = false, requireReencode = false;
                     int maxClipWidth = 0, maxClipHeight = 0;
                     foreach (var clipInfo in clipList)
                     {
@@ -505,6 +528,11 @@ namespace BlinkClipsMerger
                         {
                             // Use the capture time of first clip for output file name
                             fileNameDate = clipInfo.CaptureTime;
+                        }
+                        if (!requireReencode && !clipList[0].FrameRate.Equals(clipInfo.FrameRate))
+                        {
+                            // Frame rate are not the same, re-encode clips
+                            requireReencode = true;
                         }
                     }
 
@@ -558,7 +586,7 @@ namespace BlinkClipsMerger
                             pngData.SaveTo(pngStream);
                         }
 
-                        // Create dummy title video
+                        // Create title video
                         var titleClipPath = Path.ChangeExtension(clipImagePath, IntermediateVideoExtension);
                         await Cli.Wrap(ffmpegCommand).WithArguments(args =>
                         {
@@ -571,16 +599,23 @@ namespace BlinkClipsMerger
                                 args.Add(FFmpegParameters.AddSlientAudio, false);
                             }
 
-                            // Add video parameters
+                            // Set title duration
                             args.Add("-t");
                             args.Add(options.TitleDuration);
-                            args.Add("-c:v");
-                            args.Add(options.VideoCodec);
+
+                            // Add video parameters
+                            // args.Add("-vf \"settb=AVTB,setpts=N/FRAME_RATE/TB\" -c:v", false);
+                            args.Add("-c:v", false);
+                            args.Add(DefaultBlinkVideoCodec);
                             if (!string.IsNullOrWhiteSpace(options.VideoCodecPreset))
                             {
                                 args.Add("-preset");
                                 args.Add(options.VideoCodecPreset);
                             }
+                            // Add frame rate
+                            // args.Add($"-filter:v fps={clipInfo.CalculatedFrameRate}", false);
+                            // args.Add($"-refs 1 -bf 0 -vsync 2 -r 30 -crf {clipInfo.CalculatedFrameRate}", false);
+                            args.Add($"-vf \"settb=AVTB,setpts=N/{clipInfo.CalculatedFrameRate}/TB,fps={clipInfo.CalculatedFrameRate}\" -r {clipInfo.CalculatedFrameRate}", false);
 
                             // Add audio encoder, if required
                             if (shouldUseAudio)
@@ -629,13 +664,17 @@ namespace BlinkClipsMerger
                                 {
                                     // Add video resize parameters
                                     args.Add("-c:v");
-                                    args.Add(options.VideoCodec);
+                                    args.Add(options.VideoCodec.EmptyTo(DefaultBlinkVideoCodec));
                                     if (!string.IsNullOrWhiteSpace(options.VideoCodecPreset))
                                     {
                                         args.Add("-preset");
                                         args.Add(options.VideoCodecPreset);
                                     }
 
+                                    // Set frame rate
+                                    args.Add($"-filter:v fps={options.VideoFrameRate.NaNTo(clipInfo.CalculatedFrameRate)}", false);
+
+                                    // Change scale when resize required
                                     args.Add($"-vf scale={maxClipWidth}:{maxClipHeight}", false);
                                 }
                                 else
@@ -673,47 +712,73 @@ namespace BlinkClipsMerger
                             sourceClipPath = processedClipPath;
                         }
 
+                        // Check current 
+                        var shouldReencode = false;
+                        if (requireReencode || requiredResize || clipInfo.CalculatedFrameRate != DefaultBlinkVideoFrameRate)
+                        {
+                            shouldReencode = true;
+                        }
+
                         // Merge the title and source video
                         var combinedClipName = $"_bcm-combined-{clipInfo.CaptureTime:yyMMddHHmmss}{IntermediateVideoExtension}";
                         var combinedClipPath = Path.Combine(workingDirectoryPath, combinedClipName);
-                        WriteLog($"      Combining title with source clip: {combinedClipName}");
+                        WriteLog($"      Combining title with source clip with{(shouldReencode ? string.Empty : "out")} re-encode: {combinedClipName}");
                         var combineResult = await Cli.Wrap(ffmpegCommand).WithWorkingDirectory(workingDirectoryPath).WithArguments(args =>
                         {
-                            // Add title clip
-                            args.Add("-i");
-                            args.Add(titleClipPath);
-
-                            // Add source clip
-                            args.Add("-i");
-                            args.Add(sourceClipPath);
-
-                            // Add merge parameters based on the existence of audio stream
-                            if (shouldUseAudio)
+                            if (shouldReencode)
                             {
-                                args.Add($"-filter_complex \"[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]\" -map \"[outv]\" -map \"[outa]\"", false);
+                                // Add title clip
+                                args.Add("-i");
+                                args.Add(titleClipPath);
+
+                                // Add source clip
+                                args.Add("-i");
+                                args.Add(sourceClipPath);
+
+                                // Add merge parameters based on the existence of audio stream
+                                if (shouldUseAudio)
+                                {
+                                    args.Add($"-filter_complex \"[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]\" -map \"[outv]\" -map \"[outa]\"", false);
+                                }
+                                else
+                                {
+                                    args.Add($"-filter_complex \"[0:v][1:v]concat=n=2:v=1:a=0[outv]\" -map \"[outv]\"", false);
+                                }
+
+                                // Add frame rate
+                                args.Add($"-filter:v fps={options.VideoFrameRate.NaNTo(DefaultBlinkVideoFrameRate)}", false);
+
+                                // Encode the video
+                                args.Add("-c:v");
+                                args.Add(options.VideoCodec.EmptyTo(DefaultBlinkVideoCodec));
+
+                                // Add preset, if specified
+                                if (!string.IsNullOrWhiteSpace(options.VideoCodecPreset))
+                                {
+                                    args.Add("-preset");
+                                    args.Add(options.VideoCodecPreset);
+                                }
+
+                                // Add audio encoding parameters
+                                if (shouldUseAudio)
+                                {
+                                    args.Add(FFmpegParameters.EncodeOutputAudio, false);
+                                }
                             }
                             else
                             {
-                                args.Add($"-filter_complex \"[0:v][1:v]concat=n=2:v=1:a=0[outv]\" -map \"[outv]\"", false);
-                            }
+                                // Copy streams by using concat text file
+                                var combineListPath = Path.ChangeExtension(combinedClipPath, ".txt");
+                                File.WriteAllLines(combineListPath, [
+                                    $"file '{Path.GetFileName(titleClipPath)}'",
+                                    $"file '{sourceClipPath}'"]);
 
-                            // Add frame rate
-                            args.Add("-r");
-                            args.Add(options.FrameRate);
+                                // Add the file list for merging
+                                args.Add("-f concat -safe 0 -i", false);
+                                args.Add(combineListPath);
 
-                            // Encode the video
-                            args.Add("-c:v");
-                            args.Add(options.VideoCodec);
-                            if (!string.IsNullOrWhiteSpace(options.VideoCodecPreset))
-                            {
-                                args.Add("-preset");
-                                args.Add(options.VideoCodecPreset);
-                            }
-
-                            // Add audio encoding parameters
-                            if (shouldUseAudio)
-                            {
-                                args.Add(FFmpegParameters.EncodeOutputAudio, false);
+                                // Copy both video and audio
+                                args.Add("-c copy", false);
                             }
 
                             // Add output path

@@ -25,16 +25,16 @@ namespace BlinkClipsMerger
         [Option('t', "filename-template", HelpText = "The template string for generating output file name. Default value is \"{0}_{1:yyyy-MM-dd}.mp4\" where {0} is the camera name and {1} is the capture time (standard .NET date/time format can be applied). If -g option is used without -t, the default template \"{0}_{1:yyyy-MM}.mp4\" will be used.")]
         public string FileNameTemplate { get; set; }
 
-        [Option('r', "video-frame-rate", Default = 25, HelpText = "The output video frame rate.")]
-        public float FrameRate { get; set; }
-
         [Option('d', "title-duration", Default = 2, HelpText = "The duration (in seconds) of title image.")]
         public int TitleDuration { get; set; }
 
-        [Option('c', "video-codec", Default = "libx265", HelpText = "The video codec for merged output files.")]
+        [Option('r', "video-frame-rate", Default = double.NaN, HelpText = "Override the output video frame rate. It will increase the overall processing time significantly.")]
+        public double VideoFrameRate { get; set; }
+
+        [Option('c', "video-codec", HelpText = "Override the output video codec. It will increase the overall processing time significantly.")]
         public string VideoCodec { get; set; }
 
-        [Option('s', "video-codec-preset", HelpText = "The video codec preset to be used for output files. It will affect the output quality and not all video codec supported.")]
+        [Option('s', "video-codec-preset", HelpText = "The video codec preset to be used for output files, such as \"fast\" / \"faster\" / \"ultrafast\". It will affect the output quality but not all video codec supported.")]
         public string VideoCodecPreset { get; set; }
 
         [Option('i', "ignore-duration", Default = 1, HelpText = "Ignore clips that having duration (in seconds) lesser than specified value. It should help to skip corrupted clips.")]
